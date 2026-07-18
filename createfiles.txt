@@ -1,0 +1,16 @@
+python -m venv .venv
+source .venv/Scripts/activate
+pip install -r requirements.txt
+touch \
+  preprocessing/clean_audio.py \
+  preprocessing/augment.py \
+  preprocessing/spark_job.py \
+  annotation/transcribe.py \
+  training/dataset.py \
+  training/finetune.py \
+  evaluation/wer.py \
+  evaluation/latency.py \
+  api/server.py \
+  kubernetes/deployment.yaml \
+  requirements.txt \
+  README.md

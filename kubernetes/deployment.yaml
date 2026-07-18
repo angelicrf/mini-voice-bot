@@ -1,0 +1,25 @@
+apiVersion: apps/v1
+
+kind: Deployment
+
+metadata:
+  name: voice-ai
+
+spec:
+  replicas: 1
+
+  selector:
+    matchLabels:
+      app: voice-ai
+
+  template:
+    metadata:
+      labels:
+        app: voice-ai
+
+    spec:
+      containers:
+        - name: api
+          image: mini-voice-ai
+          ports:
+            - containerPort: 8000

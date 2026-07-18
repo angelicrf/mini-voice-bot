@@ -1,0 +1,10 @@
+pydub
+audiomentations
+PySpark
+openai-whisper
+datasets
+transformers
+torch
+jiwer
+FastAPI
+uvicorn
