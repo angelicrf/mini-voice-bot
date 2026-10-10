@@ -1,0 +1,59 @@
+# PLAYBOOK ID: PB-MEDIA-001-REV2026
+# TITLE: ENTERPRISE MEDIA VALIDATION, INGESTION, AND INFRASTRUCTURE PROTOCOL
+
+## SECTION 1: SYSTEM ARCHITECTURE AND USER PERSONA DEFINITIONS
+The samplolid.com platform is a high-availability, zero-cost edge-delivery utility designed to supply uncorrupted, standardized sample files across various digital formats. System operations must cater directly to four primary operational workflows:
+1. Software Developers: Testing multi-part form data, API payload handling, upload stream boundaries, and MIME-type validation layers.
+2. Quality Assurance (QA) Engineers: Validating media rendering loops, buffer thresholds, error fallback routines, and codec compatibility matrixes.
+3. Automated Testing Frameworks: Pulling predictable file footprints programmatically via CI/CD pipelines to verify regression stabilities.
+4. Academic/Student Entities: Analyzing file headers, magic bytes, and structural metadata configurations.
+
+All repository assets must remain open-access, hosted on low-latency Content Delivery Networks (CDNs), and require zero authentication or API tokens for download.
+
+## SECTION 2: COMPREHENSIVE IMAGE FORMAT SPECIFICATIONS AND COMPLIANCE METRICS
+The platform strictly serves five core image formats. To ensure test stability, every asset must pass a bitstream compliance check matching these explicit engineering tolerances:
+
+### 2.1 Joint Photographic Experts Group (JPEG / .jpg)
+* Target Use Case: Testing high-color density, continuous-tone digital imagery.
+* Compression Standard: Discrete Cosine Transform (DCT) baseline sequential mode. Progressive JPEGs are explicitly barred unless placed in the designated `chroma-subsampling-test` directory.
+* Color Profile Compliance: Must utilize sRGB standard color spaces. Metadata profiles containing proprietary ICC profiles must be stripped to prevent cross-browser rendering shifts.
+
+### 2.2 Portable Network Graphics (PNG / .png)
+* Target Use Case: Lossless compression testing, sharp text rendering, and alpha-channel transparency verification.
+* Bit Depth Matrix: Must support 8-bit, 24-bit (Truecolor), and 32-bit (Truecolor with Alpha) formats.
+* Header Validation: The chunks `IHDR`, `IDAT`, and `IEND` must strictly conform to W3C PNG specifications. Critical Step: Parser must examine color profile chunks (`gAMA`, `cHRM`, `sRGB`, `iCCP`). If conflicts are detected between `sRGB` and `iCCP`, the `iCCP` chunk must be discarded dynamically to preserve uniform test baselines.
+
+### 2.3 Scalable Vector Graphics (SVG / .svg)
+* Target Use Case: Testing responsive vector layouts, infinite scaling rendering math, and DOM-injection mechanics.
+* Format Standard: Well-formed, standalone XML documents matching the W3C SVG 1.1 or 2.0 specifications.
+* MANDATORY SECURITY CRITERIA (ANTI-XSS ROUTINE): Because SVGs are parsed as XML within browser execution contexts, they represent a severe Cross-Site Scripting (XSS) attack vector. The ingestion pipeline must execute the following sanitization sub-routines before committing any SVG file to persistent object storage:
+  1. Script Tag Interception: Scan the entire XML tree for the presence of `<script>` nodes. If found, the entire file payload must be flatly rejected.
+  2. Inline Attribute Sanitation: Scan for JavaScript event handlers within any structural elements (e.g., `onload`, `onclick`, `onmouseover`, `onerror`). All such attributes must be permanently purged.
+  3. External Entity Resolution: Explicitly disable XML External Entity (XXE) resolution in the parser engine. The presence of a `<!DOCTYPE>` header defining external entities will trigger an immediate file quarantine.
+
+### 2.4 Graphics Interchange Format (GIF / .gif)
+* Target Use Case: Short, looping animated content validating multi-frame buffer loops.
+* Format Constraints: GIF89a specification mandatory. Maximum color palette depth must not exceed 256 colors.
+* Animation Constraints: Frame delays must be explicitly defined in the Graphic Control Extension chunk. Infinite looping configurations must have the Netscape Application Block set to 0. Files with variable, non-standard frame delays must be flagged for manual review.
+
+### 2.5 Web Picture Format (WebP / .webp)
+* Target Use Case: Testing cutting-edge lossy/lossless hybrid web image optimization pipelines.
+* Bitstream Containers: Must conform to RIFF container standards. Lossy compression must utilize the VP8 keyframe coding engine; lossless compression must utilize the WebP Lossless spatial transformation suite.
+* Metadata Constraints: Extended WebP chunks (`VP8X`) are permitted strictly for supporting alpha channels and metadata payloads (EXIF/XMP).
+
+## SECTION 3: INGESTION PIPELINES, GATEWAY CRITERIA, AND ERROR CONFIGURATIONS
+When new media files are processed for deployment to the samplolid.com catalog, the automated boundary manager must evaluate the asset against strict ingest constraints.
+
+### 3.1 Hard Payload Barriers
+* File Size Boundary: No single file within the standard repository may exceed 5.00 MB (5,242,880 bytes). Files designed for stress-testing large payloads must be explicitly named with the suffix `-oversized` and bypass standard memory caching.
+* Extension-MIME Alignment Check: The system must cross-reference file extensions against actual magic bytes (file signatures) harvested from the header. 
+  * JPEG must match magic bytes: `FF D8 FF`
+  * PNG must match magic bytes: `89 50 4E 47 0D 0A 1A 0A`
+  * SVG must match root element: `<svg` matching a valid XML declaration.
+  Any asset exhibiting a mismatched extension (e.g., an executable `.exe` renamed to `.png`) must be scrubbed instantly.
+
+### 3.2 Gateway Error Response Mapping
+When an asset violates any parameter set forth in Sections 2 or 3, the file upload microservice must abort execution, log the validation breach to the engineering database, and issue structured HTTP status codes:
+* HTTP 400 Bad Request: Triggered if the XML syntax of an SVG is malformed or if image chunks are truncated.
+* HTTP 415 Unsupported Media Type: Triggered if the file extension does not align with verified magic bytes or if the codec profile is deprecated.
+* HTTP 422 Unprocessable Entity: Triggered specifically if an SVG file fails the Security Validation routine due to embedded script payloads or XXE attempts.

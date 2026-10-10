@@ -1,0 +1,38 @@
+# PLAYBOOK ID: PB-LOG-002-REV2026
+# TITLE: WAREHOUSE DISTRIBUTION, CARRIER SELECTION, AND CROSS-BORDER ROUTING PROTOCOL
+
+## SECTION 1: INVENTORY ALLOCATION AND ORDER RECONCILIATION
+Once an invoice transitions to a paid or authorized state, the logistics management framework assumes ownership of the fulfillment lifecycle.
+
+### 1.1 Smart Warehouse Sourcing Logic
+* Proximity Matching: The order distribution module must parse the customer's destination postal code and select the fulfillment center matching the lowest transit zone index.
+* Single-Source Priority: If an order contains multiple inventory line items, the allocation engine must exhaustively try to find a single fulfillment node containing 100% of the active SKUs to avoid multi-box overhead.
+* Splitting Thresholds: Split-shipment protocols must only activate if a critical line item is completely out of stock at the primary regional hub and the backorder delay threshold exceeds 48 hours.
+
+### 1.2 Address Scrubbing and CASS Validation Barriers
+* Mandatory CASS Parsing: Every shipping endpoint must pass clean validation against the domestic postal carrier database (e.g., USPS Coding Accuracy Support System) before warehouse pick-slips can print.
+* Address Resolution Stalls: If an address is flagged as an invalid delivery point or missing an apartment/suite variable, the shipment flags as `HELD_ADDRESS_ERROR`. An automated address verification form link must be dispatched to the consumer cell number or email within 15 minutes. 
+* Inventory Holds: Items matching an address-stalled order remain physically locked in the warehouse bin for a maximum threshold of 5 business days. On day 6, the reservation automatically terminates, items return to available stock, and a restocking trigger returns back to billing for order cancellation.
+
+## SECTION 2: CARRIER SELECTION MATRIX AND HAZARDOUS FOOTPRINTS
+Fulfillment teams must select shipping carriers dynamically based on performance service levels, dimensional weight (DIM) equations, and material safety traits.
+
+### 2.1 Dynamic Least-Cost Routing Engine
+* Selection Variables: The transit manager must programmatically choose service options (e.g., FedEx Ground, UPS Next Day Air, DHL Express, regional couriers) using three values:
+  1. Dimensional Weight (DIM): Length x Width x Height / 139 factor.
+  2. Carrier Performance Tier: Regional tracking and reliability scores for that specific destination zip prefix.
+  3. Promised Service Level Agreement (SLA): Standard Ground (3-5 days), Express (2-day), or Next Day Priority.
+
+### 2.2 Hazardous Materials (HazMat) Flight Restrictions
+* Identification Tagging: Any item tagged with a Lithium-Ion battery identifier or chemical classification index must bypass standard air routing profiles.
+* Shipping Containment Rules: HazMat items are strictly locked to ground-freight shipping lanes. The printing system must automatically suppress air carrier labels (e.g., FedEx Priority Overnight) and force compliance labeling (UN3481 placards) onto the outer shipping box layout.
+
+## SECTION 3: INTERNATIONAL CUSTOMS AND FREIGHT OPERATIONS
+Cross-border freight transport demands complete electronic documentation uploads to prevent border holdups and legal customs seizures.
+
+### 3.1 Electronic Commercial Invoices (EDI)
+* Mandatory Line Items: Custom export files must auto-generate a digital commercial invoice breaking down:
+  * Six-digit Harmonized System (HS) Tariff Classification codes.
+  * Extracted country of component origin.
+  * Verified unit valuation numbers matching the clear paid subtotal from the billing ledger.
+* Incoterms Delivery Assignments: Standard transactions are configured under DDP (Delivered Duty Paid), meaning all localized import tariffs are handled by our company's corporate customs bond broker on behalf of the consumer. Wholesale purchases over \$2,500 default to DAP (Delivered at Place), pushing payment obligations to the importer.

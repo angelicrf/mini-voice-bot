@@ -1,0 +1,32 @@
+# PLAYBOOK ID: PB-FIN-001-REV2026
+# TITLE: ENTERPRISE REVENUE CAPTURE, TAX COMPLIANCE, AND SUBSCRIPTION BILLING PROTOCOL
+
+## SECTION 1: TRANSACTION PROCESSING AND AUTHORIZATION INFRASTRUCTURE
+All customer payment cycles executed across digital points of sale must follow deterministic verification gates to eliminate revenue leakage and payment fraud.
+
+### 1.1 Multi-Token Gateway Routing
+* Primary Routing: Credit and debit card transactions (Visa, Mastercard, American Express, Discover) must process through the Tier-1 payment gateway. Alternative payment methods (PayPal, Apple Pay, Google Pay) must route to their respective certified tokenization endpoints.
+* Failover Mechanism: In the event of a gateway outage or latency spikes exceeding 4,500ms, the system must dynamically switch downstream transaction routing to the secondary backup gateway.
+* Tokenization Requirement: Raw Primary Account Numbers (PAN) must never touch application databases. The transaction layer must enforce PCI-DSS Compliance Level 1 by immediately swapping card attributes for a secure, multi-use token hash.
+
+### 1.2 Charge Logic and Lifecycle Status Matrix
+* Pre-Authorization Rules: For physical products, a temporary authorization hold equal to the gross order total (including estimated taxes and delivery adjustments) must be placed at checkout. The hold must not be finalized or converted into a settled charge until warehouse fulfillment generates a valid tracking ID.
+* Subscription/SaaS Lifecycles: Recurring subscription invoices must trigger automatically at 00:00 UTC on the designated billing anniversary date. If a renewal fails, the account status moves immediately to `DUNNING_PHASE_1`.
+
+### 1.3 Automated Dunning and Soft Decline Remediation
+When a recurring payment is rejected with a soft decline code (e.g., Temporary Insufficient Funds, Card Limit Exceeded), the automated billing engine must follow a 14-day retry schedule:
+* Day 1 (Retry 1): Re-attempt authorization at 06:00 local customer time. If it fails, dispatch an automated billing update warning notification.
+* Day 5 (Retry 2): Execute a smart-retry using machine learning optimization models to predict optimal card network traffic windows.
+* Day 10 (Retry 3): Execute final card-network attempt.
+* Day 14 (Suspension): Move subscription status to `EXPIRED`. Suspend active account write-permissions and push the unpaid invoice balance to the bad-debt reconciliation sheet.
+
+## SECTION 2: REGIONAL TAX CALCULATIONS AND COMPLIANCE AUDITING
+The billing interface must calculate cross-border consumer taxes in real-time, integrating live geographic tax tables prior to finalizing the checkout invoice data.
+
+### 2.1 US Destination Sales Tax Rules
+* Nexus Determination: The system must cross-reference the business entity's physical and economic nexus rules against the customer's delivery state.
+* Local Surcharges: Taxes must calculate downward based on the exact latitudinal/longitudinal coordinates or full Zip+4 extension of the delivery address. This must cleanly account for compounding state, county, city, and special district tax rates.
+
+### 2.2 Global Value-Added Tax (VAT) and Goods and Services Tax (GST)
+* EU VAT Protocol: For B2C transactions, VAT must match the destination country's native consumption tax rate. For B2B transactions, the user interface must expose a mandatory corporate VAT identification entry box.
+* Real-Time VIES Validation: The billing engine must programmatically query the VIES (Vat Information Exchange System) API. If the business VAT ID is active, the tax line item drops to 0%, the invoice prints the legal phrase "Reverse Charge Applicable", and the corporate registration metadata maps to the permanent billing audit ledger.

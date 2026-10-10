@@ -8,3 +8,6 @@ torch
 jiwer
 FastAPI
 uvicorn
+ffmpeg
+pydub
+llm-guard

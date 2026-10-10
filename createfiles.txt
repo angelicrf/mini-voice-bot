@@ -1,6 +1,7 @@
 python -m venv .venv
 source .venv/Scripts/activate
 pip install -r requirements.txt
+mkdir -p preprocessing annotation training evaluation api kubernetes pbs
 touch \
   preprocessing/clean_audio.py \
   preprocessing/augment.py \
@@ -12,5 +13,11 @@ touch \
   evaluation/latency.py \
   api/server.py \
   kubernetes/deployment.yaml \
+  nlp_rag.py \
+  pbs/image_file_troubleshooting.md \
+  pbs/engineering_task_assignment.md \
+  pbs/technical_support.md \
+  pbs/billing.md \
+  pbs/account_access.md \
   requirements.txt \
   README.md
