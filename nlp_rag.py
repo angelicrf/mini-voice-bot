@@ -183,8 +183,16 @@ CATEGORY_EXEMPLARS: Dict[str, List[str]] = {
 
 # LLM Guard configuration
 vault = Vault()
-input_scanners = [Anonymize(vault), Toxicity(), PromptInjection()]
+input_scanners = [Anonymize(vault), Toxicity(threshold=0.85), PromptInjection(threshold=0.95)]
 output_scanners = [Deanonymize(vault), Sensitive()]
+
+_INJECTION_PATTERNS = [
+    r"ignore\s+(?:all\s+|any\s+|previous\s+|prior\s+|above\s+)?(?:instructions|prompts|rules)",
+    r"disregard\s+(?:all\s+|previous\s+|prior\s+)?(?:instructions|prompts|rules)",
+    r"(?:system\s+prompt|developer\s+mode|jailbreak|dan\s+mode)",
+    r"bypass\s+(?:filter|safety|rules|guardrails)",
+    r"(?:reveal|show|display|print)\s+(?:the\s+)?(?:system\s+prompt|secret|instructions)",
+]
 
 _classifier_pipeline = None
 
@@ -206,7 +214,24 @@ def validate_input_safety(text: str) -> tuple[bool, str, Dict[str, bool]]:
     """
     try:
         sanitized_prompt, results_valid, _ = scan_prompt(input_scanners, text)
-        is_safe = not any(not result for result in results_valid.values())
+
+        # Filter out DeBERTa false positives on benign conversational/translated speech.
+        # Only uphold PromptInjection if genuine adversarial jailbreak patterns are present.
+        if not results_valid.get("PromptInjection", True):
+            has_adversarial_pattern = any(
+                re.search(pat, text, re.IGNORECASE) for pat in _INJECTION_PATTERNS
+            )
+            if not has_adversarial_pattern:
+                results_valid["PromptInjection"] = True
+
+        # Anonymize returns False when PII is detected and safely vaulted.
+        # Only actual security threats (PromptInjection, Toxicity) should trigger a refusal.
+        security_threat_scanners = {"PromptInjection", "Toxicity"}
+        is_safe = all(
+            is_valid
+            for scanner_name, is_valid in results_valid.items()
+            if scanner_name in security_threat_scanners
+        )
         return is_safe, sanitized_prompt, results_valid
     except Exception:
         return True, text, {"scanner_fallback": True}
@@ -396,6 +421,10 @@ def process_and_resolve(text: str) -> Dict[str, Any]:
     # Step 1: Input Guardrail Check using llm-guard
     is_safe, sanitized_prompt, results_valid = validate_input_safety(text)
     if not is_safe:
+        threats = [
+            scanner for scanner, is_valid in results_valid.items()
+            if not is_valid and scanner in {"PromptInjection", "Toxicity"}
+        ]
         return {
             "query": text,
             "category": "security_refusal",
@@ -407,6 +436,7 @@ def process_and_resolve(text: str) -> Dict[str, Any]:
                 "I am unable to process requests attempting to alter instructions, contain toxicity, or violate security policy."
             ],
             "security_valid": results_valid,
+            "threats_detected": threats,
         }
 
     # Step 2: Intent Classification using sanitized prompt
