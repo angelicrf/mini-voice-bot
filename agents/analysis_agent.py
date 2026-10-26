@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from .base import Agent, Message
-from nlp_rag import build_user_summary
+from rag.pipeline import build_user_summary
 
 
 class AnalysisAgent(Agent):

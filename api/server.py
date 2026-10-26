@@ -4,9 +4,9 @@ from typing import Optional
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
-# Ensure root directory is on the module search path
+# Ensure project root is on the module search path
 sys.path.append(str(Path(__file__).resolve().parent.parent))
-from nlp_rag import process_and_resolve
+from rag.pipeline import process_and_resolve
 
 app = FastAPI(title="Voice Bot NLP & RAG API")
 

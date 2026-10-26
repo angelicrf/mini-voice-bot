@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from .base import Agent, Message
-from nlp_rag import research_query
+from rag.pipeline import research_query
 
 
 class ResearchAgent(Agent):
