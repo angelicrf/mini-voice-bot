@@ -413,10 +413,10 @@ def synthesize_solution(
     }
 
 
-def process_and_resolve(text: str) -> Dict[str, Any]:
+def research_query(text: str) -> Dict[str, Any]:
     """
-    Orchestrates classification, domain-partitioned RAG retrieval,
-    guardrails, and solution synthesis for an input query.
+    Performs the research stage: guardrails, intent classification,
+    category-aware retrieval from the playbook directory, and solution synthesis.
     """
     # Step 1: Input Guardrail Check using llm-guard
     is_safe, sanitized_prompt, results_valid = validate_input_safety(text)
@@ -460,3 +460,22 @@ def process_and_resolve(text: str) -> Dict[str, Any]:
     raw_solution["suggested_actions"] = sanitized_actions
 
     return raw_solution
+
+
+def build_user_summary(research_result: Dict[str, Any]) -> str:
+    """Formats the retrieved playbook research into a user-facing summary."""
+    category = research_result.get("primary_category", research_result.get("category", "general_inquiry"))
+    docs = research_result.get("matched_documents", [])
+    actions = research_result.get("suggested_actions", [])
+
+    doc_text = ", ".join(docs[:3]) if docs else "no direct playbook match"
+    action_text = "; ".join(actions[:3]) if actions else "No specific actions were identified."
+    return (
+        f"I matched this to the '{category}' workflow and found the most relevant section(s): {doc_text}. "
+        f"Recommended steps: {action_text}"
+    )
+
+
+def process_and_resolve(text: str) -> Dict[str, Any]:
+    """Backward-compatible entry point used by existing API and scripts."""
+    return research_query(text)

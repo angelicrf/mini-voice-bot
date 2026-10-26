@@ -5,8 +5,7 @@ from pathlib import Path
 # Ensure root directory is on the module search path
 BASE_DIR = Path(__file__).resolve().parent.parent
 sys.path.append(str(BASE_DIR))
-from nlp_rag import process_and_resolve
-from agents import Message, MessageBus, SpeechToTextAgent, TranslationAgent
+from agents import AnalysisAgent, Message, MessageBus, ResearchAgent, SpeechToTextAgent, TranslationAgent
 
 # Resolve audio path relative to project root (accepts CLI argument or defaults to message_facturation_fr.wav)
 audio_target = sys.argv[1] if len(sys.argv) > 1 else "message_facturation_fr.wav"
@@ -23,14 +22,12 @@ if not audio_path.exists():
         )
 
 bus = MessageBus()
-bus.register(SpeechToTextAgent())   # agent 1: speech -> text (original language)
-bus.register(TranslationAgent())    # agent 2: text -> English
+bus.register(SpeechToTextAgent())                # agent 1: speech -> text (original language)
+bus.register(TranslationAgent(next_agent="researcher"))  # agent 2: text -> English -> research
+bus.register(ResearchAgent())                    # agent 3: search the playbook knowledge base for matching PBS sections
+bus.register(AnalysisAgent())                    # agent 4: summarize the matched research and post a final answer
 bus.send(Message("user", "stt", "audio", {"audio_path": str(audio_path)}))
 
 final = bus.results[-1].payload
-print(f"Detected Language: {final['language']} ({final['confidence']:.2%})")
-print(f"Original Text    : {final['original_text']}")
-print(f"English Text     : {final['text']}\n")
-resolution = process_and_resolve(final["text"])
-print("Categorization & Solution:")
-print(json.dumps(resolution, indent=2))
+print("Research & Final Response:")
+print(json.dumps(final, indent=2))

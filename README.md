@@ -13,6 +13,8 @@ A voice-to-action pipeline that transcribes audio with OpenAI Whisper and transl
    Independent agents communicate through a lightweight `MessageBus` (`agents/base.py`); each agent handles one task and sends its result to the next by name. The final result lands in a `sink`.
    - **Agent 1 – `SpeechToTextAgent` (`stt`)**: Uses OpenAI Whisper (`base`) to detect the spoken language and transcribe the audio in its original language (`task="transcribe"`, no translation).
    - **Agent 2 – `TranslationAgent` (`translator`)**: Translates the transcript into English with Helsinki-NLP MarianMT models (`opus-mt-{lang}-en`, downloaded on first use per language). English text passes through unchanged.
+   - **Agent 3 – `ResearchAgent` (`researcher`)**: Runs the RAG research workflow, classifies intent, and retrieves the best-matching PBS playbook sections from the `pbs/` directory.
+   - **Agent 4 – `AnalysisAgent` (`analyst`)**: Converts the research result into a final user-facing summary and posts the response back to the caller.
    - The English text is then handed to the NLP/RAG stage below. New agents can be added by subclassing `Agent` and registering them on the bus.
 3. **Input Guardrails (`llm_guard.scan_prompt`)**:
    - Runs PII anonymization (via `Vault`), toxicity filtering, and prompt injection screening with false-positive filtering for translated conversational speech.
