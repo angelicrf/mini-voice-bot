@@ -5,7 +5,7 @@ from pathlib import Path
 # Ensure root directory is on the module search path
 BASE_DIR = Path(__file__).resolve().parent.parent
 sys.path.append(str(BASE_DIR))
-from agents import AnalysisAgent, Message, MessageBus, ResearchAgent, SpeechToTextAgent, TranslationAgent
+from agents import run_voice_workflow
 
 # Resolve audio path relative to project root (accepts CLI argument or defaults to message_facturation_fr.wav)
 audio_target = sys.argv[1] if len(sys.argv) > 1 else "message_facturation_fr.wav"
@@ -21,13 +21,6 @@ if not audio_path.exists():
             f"Please ensure '{audio_target}' exists in your audio directory."
         )
 
-bus = MessageBus()
-bus.register(SpeechToTextAgent())                # agent 1: speech -> text (original language)
-bus.register(TranslationAgent(next_agent="researcher"))  # agent 2: text -> English -> research
-bus.register(ResearchAgent())                    # agent 3: search the playbook knowledge base for matching PBS sections
-bus.register(AnalysisAgent())                    # agent 4: summarize the matched research and post a final answer
-bus.send(Message("user", "stt", "audio", {"audio_path": str(audio_path)}))
-
-final = bus.results[-1].payload
+final = run_voice_workflow(audio_path)
 print("Research & Final Response:")
 print(json.dumps(final, indent=2))

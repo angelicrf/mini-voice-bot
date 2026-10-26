@@ -22,6 +22,7 @@ class AnalysisAgent(Agent):
             "confidence": payload.get("confidence", 0),
             "matched_documents": payload.get("matched_documents", []),
             "suggested_actions": payload.get("suggested_actions", []),
+            "validation_status": payload.get("validation_status", "validated"),
             "user_response": summary,
         }
         self.send(self.next_agent, "final_analysis", **response)

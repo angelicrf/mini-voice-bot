@@ -6,7 +6,7 @@ from pydantic import BaseModel
 
 # Ensure project root is on the module search path
 sys.path.append(str(Path(__file__).resolve().parent.parent))
-from rag.pipeline import process_and_resolve
+from agents import run_text_workflow
 
 app = FastAPI(title="Voice Bot NLP & RAG API")
 
@@ -18,7 +18,7 @@ class TextPayload(BaseModel):
 @app.get("/voice")
 def voice(text: Optional[str] = None):
     if text:
-        return process_and_resolve(text)
+        return run_text_workflow(text)
     return {"response": "Hello from Voice AI!"}
 
 
@@ -26,4 +26,4 @@ def voice(text: Optional[str] = None):
 def resolve_text(payload: TextPayload):
     if not payload.text.strip():
         raise HTTPException(status_code=400, detail="Text payload cannot be empty.")
-    return process_and_resolve(payload.text)
+    return run_text_workflow(payload.text)

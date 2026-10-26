@@ -6,19 +6,52 @@ A voice-to-action pipeline that transcribes audio with OpenAI Whisper and transl
 
 ## Architecture Overview
 
+```mermaid
+flowchart TD
+    U[User Request] --> P[PlannerAgent]
+    P --> S[SafetyAgent]
+
+    S -->|audio input| STT[SpeechToTextAgent]
+    STT --> TR[TranslationAgent]
+    TR --> R[ResearchAgent]
+
+    S -->|text input| R
+    R --> V[ValidatorAgent]
+    V --> A[AnalysisAgent]
+    A --> F[Final User Response]
+
+    subgraph RAG[Shared RAG Layer]
+        C[rag/classifier.py\nIntent detection]
+        PB[rag/playbooks.py\nPBS parsing]
+        RET[rag/retriever.py\nSection matching]
+        G[rag/guardrails.py\nSafety checks]
+        PIPE[rag/pipeline.py\nOrchestration]
+    end
+
+    R --> C
+    PB --> RET
+    C --> RET
+    RET --> PIPE
+    G --> PIPE
+    PIPE --> V
+```
+
 1. **Audio Preprocessing & Augmentation (`annotation/`)**:
    - Cleans background noise and normalizes audio via `clean_audio.py`.
    - Applies audio data augmentation via `augment.py` before inference.
-2. **Multi-Agent Speech Pipeline (`agents/`, run via `annotation/transcribe.py`)**:
-   Independent agents communicate through a lightweight `MessageBus` (`agents/base.py`); each agent handles one task and sends its result to the next by name. The final result lands in a `sink`.
-   - **Agent 1 – `SpeechToTextAgent` (`stt`)**: Uses OpenAI Whisper (`base`) to detect the spoken language and transcribe the audio in its original language (`task="transcribe"`, no translation).
-   - **Agent 2 – `TranslationAgent` (`translator`)**: Translates the transcript into English with Helsinki-NLP MarianMT models (`opus-mt-{lang}-en`, downloaded on first use per language). English text passes through unchanged.
-   - **Agent 3 – `ResearchAgent` (`researcher`)**: Runs the RAG research workflow, classifies intent, and retrieves the best-matching PBS playbook sections from the `pbs/` directory.
-   - **Agent 4 – `AnalysisAgent` (`analyst`)**: Converts the research result into a final user-facing summary and posts the response back to the caller.
-   - The English text is then handed to the NLP/RAG stage below. New agents can be added by subclassing `Agent` and registering them on the bus.
-3. **Input Guardrails (`llm_guard.scan_prompt`)**:
+2. **Complex Multi-Agent Workflow (`agents/`, run via `annotation/transcribe.py`)**:
+   The system now uses a dependency-aware multi-agent flow instead of a single straight chain.
+   - **PlannerAgent**: decides whether the request is text or audio and routes to the appropriate workflow.
+   - **SafetyAgent**: validates the incoming payload and blocks unsafe requests before research begins.
+   - **SpeechToTextAgent**: handles audio transcription when audio is present.
+   - **TranslationAgent**: translates audio transcripts to English so the RAG layer can process them consistently.
+   - **ResearchAgent**: executes the RAG research stage and produces the best matching PBS sections.
+   - **ValidatorAgent**: checks confidence and match quality before sending the result to final synthesis.
+   - **AnalysisAgent**: converts the validated result into the final user-facing response.
+   - **`agents/orchestrator.py`**: assembles the workflow and exposes `run_voice_workflow(...)` and `run_text_workflow(...)` for reuse.
+3. **Input Guardrails (`rag/guardrails.py`)**:
    - Runs PII anonymization (via `Vault`), toxicity filtering, and prompt injection screening with false-positive filtering for translated conversational speech.
-4. **Intent Classification (`nlp_rag.py`)**:
+4. **Intent Classification (`rag/classifier.py`)**:
    - Multi-label Zero-Shot Transformer classifier (`transformers.pipeline`) with an intelligent stem-aware keyword fallback.
    - Dispatches across supported categories:
      - `image_file_troubleshooting`
@@ -27,14 +60,14 @@ A voice-to-action pipeline that transcribes audio with OpenAI Whisper and transl
      - `billing`
      - `account_access`
      - `general_inquiry`
-5. **Context-Preserving Playbook RAG (`pbs/`)**:
+5. **Context-Preserving Playbook RAG (`rag/playbooks.py` + `rag/retriever.py`)**:
    - Loads modular markdown/text playbooks from the `pbs/` directory.
    - Splits by heading and section blocks rather than naive character slicing, preserving sentence continuity.
-   - Partitions vector/relevance retrieval to match predicted categories.
-6. **Output Guardrails (`llm_guard.scan_output`)**:
+   - Partitions retrieval to match predicted categories and keep the best section matches for validation and final analysis.
+6. **Output Guardrails (`rag/guardrails.py`)**:
    - Scrubs credentials, sensitive tokens, and maps vault tokens back into deanonymized safe text.
 7. **FastAPI Service (`api/server.py`)**:
-   - Exposes REST endpoints for querying the pipeline directly over HTTP.
+   - Exposes REST endpoints for querying the pipeline directly over HTTP and now routes through the agent workflow instead of directly calling the RAG pipeline.
 
 ---
 
@@ -45,21 +78,38 @@ mini-voice-bot/
 ├── annotation/
 │   ├── clean_audio.py        # Audio noise cleaning and normalization
 │   ├── augment.py            # Audio dataset augmentation
-│   └── transcribe.py         # Wires the agents on the bus & triggers the RAG pipeline
+│   └── transcribe.py         # Runs the agent workflow and prints the final answer
 ├── agents/
-│   ├── base.py               # Agent, Message, MessageBus
-│   ├── stt_agent.py          # Agent 1: speech-to-text (Whisper)
-│   └── translation_agent.py  # Agent 2: text-to-English (MarianMT)
+│   ├── base.py               # Agent, Message, MessageBus primitives
+│   ├── orchestrator.py       # Registers the dependency-aware workflow and exposes run_*_workflow(...)
+│   ├── planner_agent.py      # Plans the request path (audio/text)
+│   ├── safety_agent.py       # Validates safety and routes for execution
+│   ├── stt_agent.py          # Speech-to-text (Whisper)
+│   ├── translation_agent.py  # Text-to-English (MarianMT)
+│   ├── research_agent.py     # RAG research job against PBS playbooks
+│   ├── validator_agent.py    # Validates match strength and confidence
+│   ├── analysis_agent.py     # Summarizes the research into a user response
+│   └── __init__.py           # Exports the multi-agent layer and orchestration API
 ├── api/
-│   └── server.py              # FastAPI REST endpoints (/voice, /resolve)
+│   └── server.py             # FastAPI REST endpoints (/voice, /resolve)
+├── rag/
+│   ├── __init__.py           # Public RAG package exports
+│   ├── config.py             # Categories, keywords, playbook defaults
+│   ├── models.py             # KnowledgeDocument data model
+│   ├── playbooks.py         # PBS discovery and parsing logic
+│   ├── classifier.py         # Intent classification logic
+│   ├── retriever.py          # Matching and ranking of relevant PBS sections
+│   ├── guardrails.py        # Safety validation + output sanitization
+│   └── pipeline.py           # Research orchestration and user-summary factory
 ├── pbs/                      # Knowledge base playbooks (auto-seeded if empty)
 │   ├── image_file_troubleshooting.md
 │   ├── engineering_task_assignment.md
 │   ├── technical_support.md
 │   ├── billing.md
 │   └── account_access.md
-├── nlp_rag.py                # Guardrails, classification, RAG retrieval & synthesis
-└── README.md
+├── requirements.txt
+├── README.md
+└── .venv/
 ```
 
 ---

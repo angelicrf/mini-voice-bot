@@ -14,9 +14,10 @@ class Message:
 class MessageBus:
     """Routes messages between registered agents; 'sink' collects final results."""
 
-    def __init__(self) -> None:
+    def __init__(self, memory_store: Any | None = None) -> None:
         self.agents: Dict[str, "Agent"] = {}
         self.results: List[Message] = []
+        self.memory_store = memory_store
 
     def register(self, agent: "Agent") -> None:
         self.agents[agent.name] = agent

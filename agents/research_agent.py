@@ -9,7 +9,7 @@ class ResearchAgent(Agent):
 
     name = "researcher"
 
-    def __init__(self, next_agent: str = "analyst") -> None:
+    def __init__(self, next_agent: str = "validator") -> None:
         super().__init__()
         self.next_agent = next_agent
 
@@ -20,6 +20,10 @@ class ResearchAgent(Agent):
             return
 
         research_result = research_query(text)
+        if self.bus is not None and getattr(self.bus, "memory_store", None) is not None:
+            session_id = str(msg.payload.get("session_id") or text or "default-session")
+            self.bus.memory_store.record_attempt(session_id, text, research_result)
+
         self.send(
             self.next_agent,
             "research_complete",
